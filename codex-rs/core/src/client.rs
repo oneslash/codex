@@ -63,6 +63,7 @@ use crate::protocol::TokenUsage;
 use crate::token_data::PlanType;
 use crate::tools::spec::create_tools_json_for_responses_api;
 use crate::util::backoff;
+use crate::util::strip_citation_markup;
 
 #[derive(Debug, Deserialize)]
 struct ErrorResponse {
@@ -932,7 +933,7 @@ async fn process_sse<S>(
             "response.reasoning_summary_text.delta" => {
                 if let (Some(delta), Some(summary_index)) = (event.delta, event.summary_index) {
                     let event = ResponseEvent::ReasoningSummaryDelta {
-                        delta,
+                        delta: strip_citation_markup(&delta).into_owned(),
                         summary_index,
                     };
                     if tx_event.send(Ok(event)).await.is_err() {
@@ -943,7 +944,7 @@ async fn process_sse<S>(
             "response.reasoning_text.delta" => {
                 if let (Some(delta), Some(content_index)) = (event.delta, event.content_index) {
                     let event = ResponseEvent::ReasoningContentDelta {
-                        delta,
+                        delta: strip_citation_markup(&delta).into_owned(),
                         content_index,
                     };
                     if tx_event.send(Ok(event)).await.is_err() {

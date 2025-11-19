@@ -126,6 +126,7 @@ use codex_core::ConversationManager;
 use codex_core::protocol::AskForApproval;
 use codex_core::protocol::SandboxPolicy;
 use codex_core::protocol_config_types::ReasoningEffort as ReasoningEffortConfig;
+use codex_core::util::strip_citation_markup;
 use codex_file_search::FileMatch;
 use codex_protocol::plan_tool::UpdatePlanArgs;
 use strum::IntoEnumIterator;
@@ -424,6 +425,8 @@ impl ChatWidget {
         // For reasoning deltas, do not stream to history. Accumulate the
         // current reasoning block and extract the first bold element
         // (between **/**) as the chunk header. Show this header as status.
+        let delta = strip_citation_markup(&delta).into_owned();
+
         self.reasoning_buffer.push_str(&delta);
 
         if let Some(header) = extract_first_bold(&self.reasoning_buffer) {
@@ -889,6 +892,8 @@ impl ChatWidget {
     fn handle_streaming_delta(&mut self, delta: String) {
         // Before streaming agent content, flush any active exec cell group.
         self.flush_active_cell();
+
+        let delta = strip_citation_markup(&delta).into_owned();
 
         if self.stream_controller.is_none() {
             if self.needs_final_message_separator {

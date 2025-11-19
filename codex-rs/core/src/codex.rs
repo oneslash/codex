@@ -19,6 +19,7 @@ use crate::terminal;
 use crate::truncate::TruncationPolicy;
 use crate::user_notification::UserNotifier;
 use crate::util::error_or_panic;
+use crate::util::strip_citation_markup;
 use async_channel::Receiver;
 use async_channel::Sender;
 use codex_protocol::ConversationId;
@@ -2273,7 +2274,7 @@ async fn try_run_turn(
                         thread_id: sess.conversation_id.to_string(),
                         turn_id: turn_context.sub_id.clone(),
                         item_id: active.id(),
-                        delta: delta.clone(),
+                        delta: strip_citation_markup(&delta).into_owned(),
                     };
                     sess.send_event(&turn_context, EventMsg::AgentMessageContentDelta(event))
                         .await;
@@ -2290,7 +2291,7 @@ async fn try_run_turn(
                         thread_id: sess.conversation_id.to_string(),
                         turn_id: turn_context.sub_id.clone(),
                         item_id: active.id(),
-                        delta,
+                        delta: strip_citation_markup(&delta).into_owned(),
                         summary_index,
                     };
                     sess.send_event(&turn_context, EventMsg::ReasoningContentDelta(event))
@@ -2320,7 +2321,7 @@ async fn try_run_turn(
                         thread_id: sess.conversation_id.to_string(),
                         turn_id: turn_context.sub_id.clone(),
                         item_id: active.id(),
-                        delta,
+                        delta: strip_citation_markup(&delta).into_owned(),
                         content_index,
                     };
                     sess.send_event(&turn_context, EventMsg::ReasoningRawContentDelta(event))
@@ -2354,7 +2355,7 @@ pub(super) fn get_last_assistant_message_from_turn(responses: &[ResponseItem]) -
             if role == "assistant" {
                 content.iter().rev().find_map(|ci| {
                     if let ContentItem::OutputText { text } = ci {
-                        Some(text.clone())
+                        Some(strip_citation_markup(text).into_owned())
                     } else {
                         None
                     }

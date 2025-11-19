@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 use crate::user_instructions::UserInstructions;
 use crate::user_shell_command::is_user_shell_command_text;
+use crate::util::strip_citation_markup;
 
 fn is_session_prefix(text: &str) -> bool {
     let trimmed = text.trim_start();
@@ -59,7 +60,9 @@ fn parse_agent_message(id: Option<&String>, message: &[ContentItem]) -> AgentMes
     for content_item in message.iter() {
         match content_item {
             ContentItem::OutputText { text } => {
-                content.push(AgentMessageContent::Text { text: text.clone() });
+                content.push(AgentMessageContent::Text {
+                    text: strip_citation_markup(text).into_owned(),
+                });
             }
             _ => {
                 warn!(
@@ -93,7 +96,9 @@ pub fn parse_turn_item(item: &ResponseItem) -> Option<TurnItem> {
             let summary_text = summary
                 .iter()
                 .map(|entry| match entry {
-                    ReasoningItemReasoningSummary::SummaryText { text } => text.clone(),
+                    ReasoningItemReasoningSummary::SummaryText { text } => {
+                        strip_citation_markup(text).into_owned()
+                    }
                 })
                 .collect();
             let raw_content = content
@@ -102,7 +107,9 @@ pub fn parse_turn_item(item: &ResponseItem) -> Option<TurnItem> {
                 .into_iter()
                 .map(|entry| match entry {
                     ReasoningItemContent::ReasoningText { text }
-                    | ReasoningItemContent::Text { text } => text,
+                    | ReasoningItemContent::Text { text } => {
+                        strip_citation_markup(&text).into_owned()
+                    }
                 })
                 .collect();
             Some(TurnItem::Reasoning(ReasoningItem {
@@ -242,14 +249,14 @@ mod tests {
             id: "reasoning_1".to_string(),
             summary: vec![
                 ReasoningItemReasoningSummary::SummaryText {
-                    text: "Step 1".to_string(),
+                    text: "Step 1 citeturn2search0".to_string(),
                 },
                 ReasoningItemReasoningSummary::SummaryText {
                     text: "Step 2".to_string(),
                 },
             ],
             content: Some(vec![ReasoningItemContent::ReasoningText {
-                text: "raw details".to_string(),
+                text: "raw details <cite|web/src/foo:1|>".to_string(),
             }]),
             encrypted_content: None,
         };
@@ -260,9 +267,12 @@ mod tests {
             TurnItem::Reasoning(reasoning) => {
                 assert_eq!(
                     reasoning.summary_text,
-                    vec!["Step 1".to_string(), "Step 2".to_string()]
+                    vec!["Step 1 ".to_string(), "Step 2".to_string()]
                 );
-                assert_eq!(reasoning.raw_content, vec!["raw details".to_string()]);
+                assert_eq!(
+                    reasoning.raw_content,
+                    vec!["raw details web/src/foo:1".to_string()]
+                );
             }
             other => panic!("expected TurnItem::Reasoning, got {other:?}"),
         }
@@ -319,5 +329,26 @@ mod tests {
             }
             other => panic!("expected TurnItem::WebSearch, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn agent_message_strips_citation_markup() {
+        let item = ResponseItem::Message {
+            id: Some("assistant".to_string()),
+            role: "assistant".to_string(),
+            content: vec![ContentItem::OutputText {
+                text: "Answer <cite|web/src/foo.svelte:1|> citeturn2search0".to_string(),
+            }],
+        };
+
+        let turn_item = parse_turn_item(&item).expect("expected agent message turn item");
+
+        let TurnItem::AgentMessage(agent) = turn_item else {
+            panic!("expected TurnItem::AgentMessage, got {turn_item:?}");
+        };
+        let Some(AgentMessageContent::Text { text }) = agent.content.first() else {
+            panic!("expected text content");
+        };
+        assert_eq!(text, "Answer web/src/foo.svelte:1 ");
     }
 }

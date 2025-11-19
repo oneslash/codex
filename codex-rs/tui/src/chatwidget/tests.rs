@@ -2618,6 +2618,36 @@ fn final_reasoning_then_message_without_deltas_are_rendered() {
 }
 
 #[test]
+fn reasoning_deltas_strip_citation_markup() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual();
+
+    chat.handle_codex_event(Event {
+        id: "s1".into(),
+        msg: EventMsg::AgentReasoningDelta(AgentReasoningDeltaEvent {
+            delta: "Thinking... citeturn2search0".into(),
+        }),
+    });
+
+    chat.handle_codex_event(Event {
+        id: "s1".into(),
+        msg: EventMsg::AgentReasoning(AgentReasoningEvent {
+            text: "Final reasoning.".into(),
+        }),
+    });
+
+    let cells = drain_insert_history(&mut rx);
+    let combined = cells
+        .iter()
+        .map(|lines| lines_to_single_string(lines))
+        .collect::<String>();
+
+    assert!(
+        !combined.contains('\u{e200}') && !combined.contains("cite"),
+        "expected sanitized reasoning, got: {combined}"
+    );
+}
+
+#[test]
 fn deltas_then_same_final_message_are_rendered_snapshot() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual();
 
